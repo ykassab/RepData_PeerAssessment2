@@ -10,52 +10,142 @@ We hope that our findings will help you prepare for the server weather events in
 ## Data Processing
 ###Loading Necessary Libraries
 ```{r}
-library(dplyr)
 library(ggplot2)
+library(dplyr)
+
 ```
+
 ###Downloading and Reading the data from the file 
 ```{r cache=TRUE}
 destFile<-"repdata_data_StormData.csv.bz2"
 fileURL <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
-
 if(!file.exists(destFile)){
      download.file(fileURL ,destfile=destFile,method="auto")
 } 
-
 stormData <-read.csv("repdata_data_StormData.csv.bz2")
-
 ```
 
 ###Examining the data
 ```{r}
-head(stormData)
 str(stormData)
-names(stormData)
+head(stormData)
 ```
 
 ###Health Consequences
-
 To evaluate the health impact, we calculate the total fatalities and total injuries of each event type. The variables EVTYPE, FATALITIES and INJURIES contain the information that we need.
 
+A dataframe with only the needed columns
 ```{r cache=TRUE}
-fatalities <- stormData %>% select(EVTYPE, FATALITIES) %>% group_by(EVTYPE) %>% summarise(totalFatalities = sum(FATALITIES)) %>% arrange(-totalFatalities)
+stormHealth <- stormData %>% select(EVTYPE, FATALITIES,INJURIES)
+```
+
+```{r  cache=TRUE}
+fatalities <- stormHealth %>% select(EVTYPE, FATALITIES) %>% group_by(EVTYPE) %>% summarise(totalFatalities = sum(FATALITIES)) %>% arrange(-totalFatalities)
 
 head(fatalities, 10)
 
-injuries <- df %>% select(EVTYPE, INJURIES) %>% group_by(EVTYPE) %>% summarise(totalInjuries = sum(INJURIES)) %>% arrange(-totalInjuries)
+injuries <- stormHealth %>% select(EVTYPE, INJURIES) %>% group_by(EVTYPE) %>% summarise(totalInjuries = sum(INJURIES)) %>% arrange(-totalInjuries)
 
 head(injuries, 10)
 ```
 
 ###Economic Consequences
+To evaluate the economic consequences we are interested in the following columns: EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP. The columns store the values of Property Damage and Crop damage and a multiplier for each value. 
+The columns PROPDMGEXP and CROPDMGEXP contain the multiplier abbreviations. From the codebook, we can understand the following:
 
+    Possible values: H,h,K,k,M,m,B,b,+,-,?,0,1,2,3,4,5,6,7,8, and blank character
+    H,h = hundreds = 100
+    K,k = kilos = thousands = 1,000
+    M,m = millions = 1,000,000
+    B,b = billions = 1,000,000,000
+    (+) = 1
+    (-) = 0
+    (?) = 0
+    blank/empty character = 0
+    numeric 0..8 = 10
+
+
+We construct a dataframe with only the needed columns
+```{r}
+stormDamage <- stormData %>% select(EVTYPE, PROPDMG,PROPDMGEXP,CROPDMG,CROPDMGEXP)
+```
+
+We add additional columns to our newly constructed data frame
+- PROPMULT and CROPMULT columns will hold the values of the multipliers and will be used to calucate the dollar value of the damage
+- To calculate the property damage dollar value PROPDMGUSD and crop damage dollar value CROPDMGUSD, we multiply the damage dollar number with the appropriate multiple for property and crop
+- We then add dollar damage value in one field TOTALDMGUSD
+
+```{r cache=TRUE}
+stormDamage$PROPMULT = 0
+stormDamage$CROPMULT = 0
+
+stormDamage[stormDamage$PROPDMGEXP=="?",]$PROPMULT=0
+stormDamage[stormDamage$PROPDMGEXP=="M",]$PROPMULT=1000000
+stormDamage[stormDamage$PROPDMGEXP=="m",]$PROPMULT=1000000
+stormDamage[stormDamage$PROPDMGEXP=="K",]$PROPMULT=1000
+stormDamage[stormDamage$PROPDMGEXP=="H",]$PROPMULT=100
+stormDamage[stormDamage$PROPDMGEXP=="h",]$PROPMULT=100
+stormDamage[stormDamage$PROPDMGEXP=="B",]$PROPMULT=1000000000
+stormDamage[stormDamage$PROPDMGEXP=="+",]$PROPMULT=0
+stormDamage[stormDamage$PROPDMGEXP=="-",]$PROPMULT=0
+stormDamage[stormDamage$PROPDMGEXP=="",]$PROPMULT=0
+
+stormDamage$PROPDMGUSD = stormDamage$PROPDMG*stormDamage$PROPMULT
+
+stormDamage[stormDamage$CROPDMGEXP=="?",]$CROPMULT=0
+stormDamage[stormDamage$CROPDMGEXP=="M",]$CROPMULT=1000000
+stormDamage[stormDamage$CROPDMGEXP=="m",]$CROPMULT=1000000
+stormDamage[stormDamage$CROPDMGEXP=="K",]$CROPMULT=1000
+stormDamage[stormDamage$CROPDMGEXP=="k",]$CROPMULT=1000
+stormDamage[stormDamage$CROPDMGEXP=="B",]$CROPMULT=1000000000
+stormDamage[stormDamage$CROPDMGEXP=="",]$CROPMULT=0
+
+stormDamage$CROPDMGUSD = stormDamage$CROPDMG*stormDamage$CROPMULT
+
+stormDamage$TOTALDMGUSD = stormDamage$CROPDMGUSD + stormDamage$PROPDMGUSD
+
+```
+We now group by event type and sort by damage dollar value descending 
+```{r}
+economical <- stormDamage %>% group_by(EVTYPE) %>% summarize(TOTALDMGEVENTTYPE = sum(TOTALDMGUSD))%>% arrange(-TOTALDMGEVENTTYPE) 
+
+head(economical,10)
+```
 
 ##Results
 
 ###Across the United States, which types of events are most harmful with respect to population health?
+The top 10 events with the highest total fatalities are shown below
+```{r}
+fatalitiesPlot <- ggplot() + geom_bar(data = fatalities[1:10,], aes(x = EVTYPE, 
+    y = totalFatalities, fill = interaction(totalFatalities, EVTYPE)), stat = "identity", 
+    show.legend = F) + theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
+    xlab("Harmful Events") + ylab("No. of fatalities") + ggtitle("Top 10 weather events causing fatalities") + 
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+print(fatalitiesPlot)
+```
+**We can see that Tornado is responsible of most fatalities.**
+
+The top 10 events with the highest total injuries are shown below
+```{r}
+injuriesPlot <- ggplot() + geom_bar(data = injuries[1:10,], aes(x = EVTYPE, y = totalInjuries, 
+    fill = interaction(totalInjuries, EVTYPE)), stat = "identity", show.legend = F) + 
+    theme(axis.text.x = element_text(angle = 30, hjust = 1)) + xlab("Harmful Events") + 
+    ylab("No. of Injuries") + ggtitle("Top 10 weather events causing Injuries") + 
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+print(injuriesPlot)
+```
+
+**We can see that Tornado is responsible of most injuries.**
 
 ###Across the United States, which types of events have the greatest economic consequences?
-
+```{r}
+economicalPlot<-ggplot() + geom_bar(data = economical[1:10,], aes(x = EVTYPE, y = TOTALDMGEVENTTYPE, fill = interaction(TOTALDMGEVENTTYPE, 
+    EVTYPE)), stat = "identity", show.legend = F) + theme(axis.text.x = element_text(angle = 30, 
+    hjust = 1)) + xlab("Event Type") + ylab("Total Damage Value in USD")
+print(economicalPlot)
+```
+**We can see that Flood is responsible of highest economical impact.**
 
 ##Conclusion
 Our study shows that Tornados are the most harmful and have the biggest number of fatalities and injuries while Floods have the greatest economic consequences on buildings and crops.
