@@ -145,6 +145,7 @@ economicalPlot<-ggplot() + geom_bar(data = economical[1:10,], aes(x = EVTYPE, y 
     hjust = 1)) + xlab("Event Type") + ylab("Total Damage Value in USD")
 print(economicalPlot)
 ```
+
 **We can see that Flood is responsible of highest economical impact.**
 
 ##Conclusion
