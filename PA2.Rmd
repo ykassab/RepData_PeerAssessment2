@@ -4,11 +4,25 @@ Your document should have a title that briefly summarizes your data analysis
 ## Synopsis
 Synopsis: Immediately after the title, there should be a synopsis which describes and summarizes your analysis in at most 10 complete sentences.
 
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+We explored the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+This analysis is meant to 
+
 ## Data Processing
-Read the data from the file 
+Download and Read the data from the file 
 ```{r}
+destFile<-"repdata_data_StormData.csv.bz2"
+fileURL <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+
+if(!file.exists(destFile)){
+     download.file(fileURL ,destfile=destFile,method="auto")
+} 
 
 stormdata <-read.csv("repdata_data_StormData.csv.bz2")
+
+head(stormdata)
 
 ```
 Clean up the data
